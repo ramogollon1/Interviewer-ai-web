@@ -1,21 +1,19 @@
-import { useState, ChangeEvent, useRef, useEffect } from "react";
+import { useState, ChangeEvent, useEffect, useRef } from "react";
 import promptsData from "../../locales/en/prompts.json";
 import { Message, Prompt } from "../../Models/interviewer";
-import {
-  LANG_DEFAULT,
-  DEFAULT_PROMPT,
-  ROLE_SYSTEM,
-} from "../../constants/settings";
+import { DEFAULT_PROMPT, ROLE_SYSTEM } from "../../constants/settings";
 import Dropdown from "../../components/Dropdown";
 import Textarea from "../../components/Textarea";
 import RecordButton from "../../components/RecordButton";
-import { callFunctionWithDelay } from "../../utils/timer";
 import Button from "../../components/Button";
 
 const recognition = new window.webkitSpeechRecognition();
 const synth = window.speechSynthesis;
 
 recognition.continuous = true;
+recognition.lang = "en-US";
+
+synth.cancel();
 
 function Interviewer() {
   const [systemMessage, setSystemMessage] = useState<string>(
@@ -29,24 +27,13 @@ function Interviewer() {
   const [messages, setMessages] = useState<Message[]>([
     { role: "system", content: DEFAULT_PROMPT.content },
   ]);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const resultHandlerRef = useRef<(event: SpeechRecognitionEvent) => void>();
 
   const handleSystemMessageChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setSystemMessage(e.target.value);
     setMessages([{ role: ROLE_SYSTEM, content: e.target.value }]);
   };
-
-  useEffect(() => {
-    return () => {
-      recognition.stop();
-      synth.cancel();
-    };
-  }, []);
-
-  useEffect(() => {
-    recognition.lang = LANG_DEFAULT.value;
-  }, []);
 
   const handleOnChangePrompt = (value: string) => {
     const prompt = promptsData.prompts.find((p) => p.value === value);
@@ -62,29 +49,26 @@ function Interviewer() {
     setSelectedPrompt(DEFAULT_PROMPT);
   };
 
-  function handLeStartRecording() {
+  function handleStartRecording() {
     setIsRecording(true);
 
     synth.cancel();
 
     recognition.start();
 
-    resultHandlerRef.current = (event: SpeechRecognitionEvent) => {
+    recognition.addEventListener("result", (event) => {
       const buffer = Array.from(event.results)
         .map((result) => result[0])
         .map((result) => result.transcript)
         .join(" ");
 
       setBuffer(buffer);
-    };
-
-    recognition.addEventListener("result", resultHandlerRef.current);
+    });
   }
 
   async function handleEndRecording() {
     setIsRecording(false);
     setIsLoading(true);
-    setBuffer("");
 
     recognition.stop();
 
@@ -114,7 +98,7 @@ function Interviewer() {
 
     const utterance = new SpeechSynthesisUtterance(answer.content);
 
-    utterance.lang = LANG_DEFAULT.value;
+    utterance.lang = "en-US";
     synth.speak(utterance);
     setMessages(draft);
   }
@@ -145,11 +129,7 @@ function Interviewer() {
       <RecordButton
         isLoading={isLoading}
         isRecording={isRecording}
-        onClick={
-          isRecording
-            ? () => callFunctionWithDelay(1000, handleEndRecording)
-            : handLeStartRecording
-        }
+        onClick={isRecording ? handleEndRecording : handleStartRecording}
       />
       <footer className="text-center leading-[4rem] opacity-70">
         © {new Date().getFullYear()} Interviewer-ai-web
